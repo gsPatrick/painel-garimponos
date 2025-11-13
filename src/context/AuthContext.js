@@ -1,107 +1,152 @@
-// context/AuthContext.js - VERSÃO COM MÍNIMO DE REDIRECIONAMENTO
-
+// context/AuthContext.js
 "use client";
 
 import { createContext, useContext, useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import api, { setProfileId } from '../lib/api'; 
+import { useRouter, usePathname } from 'next/navigation';
+import api from '../lib/api'; // Importa a instância configurada do Axios
 
+// Cria o contexto de autenticação
 const AuthContext = createContext(null);
 
+/**
+ * Provedor de Autenticação
+ * Este componente envolve a aplicação e fornece o estado e as funções de autenticação
+ * para todos os componentes filhos.
+ */
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(true); // Começa como true para verificar o token inicial
   const router = useRouter();
+  const pathname = usePathname(); // Hook para saber a rota atual
 
+  // Efeito para verificar se existe um token válido no localStorage ao carregar a aplicação.
   useEffect(() => {
     async function loadUserFromToken() {
       const token = localStorage.getItem('authToken');
       if (token) {
         try {
+          // Usa o endpoint /users/me para validar o token e obter dados atualizados do usuário.
           const { data } = await api.get('/users/me'); 
-          if (data) {
-            setUser(data);
-            
-            // Apenas carrega o profileId da sessão se existir
-            const savedProfileId = localStorage.getItem('currentProfileId');
-            if(savedProfileId) {
-                setProfileId(savedProfileId); 
-            }
-          }
+          setUser(data);
         } catch (error) {
-          // Token inválido ou expirado - Limpa a sessão
+          // Se o token for inválido ou expirado (e o refresh token também falhar),
+          // o interceptor no api.js já terá tentado renová-lo.
+          // Se o erro persistir, limpamos a sessão do cliente.
+          console.error("Sessão inválida ou expirada. Realizando logout.");
           localStorage.removeItem('authToken');
-          localStorage.removeItem('currentProfileId');
-          setProfileId(null);
+          localStorage.removeItem('refreshToken');
           setUser(null);
-          // Não redireciona, deixa a página atual resolver.
+          
+          // Redireciona para o login apenas se o usuário não estiver em uma página pública
+          const publicPaths = ['/login', '/register'];
+          if (!publicPaths.includes(pathname)) {
+             router.push('/login');
+          }
         }
       }
-      
+      // Finaliza o carregamento inicial
       setLoading(false);
     }
     loadUserFromToken();
-  }, []); 
+  }, [router, pathname]); // Re-executa se a rota mudar, para proteger novas páginas
 
+  /**
+   * Função para realizar o login do usuário.
+   * @param {string} email - O e-mail do usuário.
+   * @param {string} password - A senha do usuário.
+   */
   const login = async (email, password) => {
     try {
-      const { data: loginResponse } = await api.post('/auth/login', { email, password });
+      const { data } = await api.post('/auth/login', { email, password });
       
-      if (loginResponse.token) {
-        localStorage.setItem('authToken', loginResponse.token);
+      if (data.accessToken && data.refreshToken) {
+        // Salva ambos os tokens no localStorage
+        localStorage.setItem('authToken', data.accessToken);
+        localStorage.setItem('refreshToken', data.refreshToken);
         
-        // <<< CRÍTICO: CAPTURAR E ARMAZENAR O PROFILE ID RETORNADO PELO LOGIN >>>
-        if (loginResponse.profileId) {
-            localStorage.setItem('currentProfileId', loginResponse.profileId);
-            setProfileId(loginResponse.profileId);
-        }
-        // ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        // Atualiza o estado do usuário com os dados retornados pela API
+        setUser(data.user);
         
-        // Faz a requisição de dados do usuário (que agora contém o whatsapp_phone)
-        const { data: userData } = await api.get('/users/me');
-        setUser(userData);
-        
-        // Regra Especial: Após login, redireciona para a tela de seleção de perfil.
-        router.push('/profiles/select');
-        return;
+        // Redireciona para o painel principal após o login
+        router.push('/dashboard');
       } else {
-         throw new Error('Token não recebido do servidor.');
+         throw new Error('Resposta inválida do servidor durante o login.');
       }
-
     } catch (error) {
+      // Limpa quaisquer tokens antigos em caso de falha
       localStorage.removeItem('authToken');
-      localStorage.removeItem('currentProfileId');
-      setProfileId(null);
-      throw new Error(error.response?.data?.error || 'Falha no login');
+      localStorage.removeItem('refreshToken');
+      // Lança o erro para ser tratado na UI (página de login)
+      throw new Error(error.response?.data?.message || 'Falha no login. Verifique suas credenciais.');
+    }
+  };
+
+  /**
+   * Função para cadastrar um novo usuário.
+   * @param {object} formData - Objeto com { name, email, password, cpf, phone }.
+   */
+  const register = async (formData) => {
+    try {
+      const { data } = await api.post('/auth/register', formData);
+      
+      if (data.accessToken && data.refreshToken) {
+        // Após o cadastro, o usuário já é logado automaticamente
+        localStorage.setItem('authToken', data.accessToken);
+        localStorage.setItem('refreshToken', data.refreshToken);
+        setUser(data.user);
+        
+        // Redireciona para o painel
+        router.push('/dashboard');
+      } else {
+        throw new Error('Resposta inválida do servidor após o cadastro.');
+      }
+    } catch (error) {
+      // Lança o erro para ser tratado na UI (página de cadastro)
+      throw new Error(error.response?.data?.message || 'Falha no cadastro. Por favor, tente novamente.');
     }
   };
   
-  // Função para seleção de perfil
-  const selectProfile = (profileId) => {
-      setProfileId(profileId); // Salva no cliente Axios e localStorage
-      router.push('/Painel'); // Redireciona para o Dashboard
+  /**
+   * Função para realizar o logout do usuário.
+   */
+  const logout = () => {
+    // Limpa os tokens do localStorage
+    localStorage.removeItem('authToken');
+    localStorage.removeItem('refreshToken');
+    
+    // Reseta o estado do usuário
+    setUser(null);
+    
+    // Redireciona para a página de login
+    router.push('/login');
   };
 
-  const logout = async () => {
-    try {
-        await api.post('/auth/logout'); 
-    } catch (error) {
-        console.error("Erro no endpoint de logout, mas prosseguindo com o logout no cliente.", error);
-    } finally {
-        localStorage.removeItem('authToken');
-        localStorage.removeItem('currentProfileId');
-        setProfileId(null); 
-        setUser(null);
-        // Regra Especial: Redireciona para a tela de login.
-        router.push('/login');
-    }
+  // O valor fornecido pelo contexto
+  const value = {
+    isAuthenticated: !!user, // Booleano que indica se o usuário está logado
+    user,                     // Objeto com os dados do usuário
+    register,                 // Função para cadastro
+    login,                    // Função para login
+    logout,                   // Função para logout
+    loading,                  // Booleano que indica se a autenticação inicial está em andamento
   };
 
   return (
-    <AuthContext.Provider value={{ isAuthenticated: !!user, user, login, selectProfile, logout, loading }}>
-      {children}
+    <AuthContext.Provider value={value}>
+      {/* Só renderiza o conteúdo da aplicação após a verificação inicial de autenticação */}
+      {!loading && children}
     </AuthContext.Provider>
   );
 }
 
-export const useAuth = () => useContext(AuthContext);
+/**
+ * Hook customizado para consumir o AuthContext de forma fácil.
+ * Ex: const { isAuthenticated, user, login } = useAuth();
+ */
+export const useAuth = () => {
+  const context = useContext(AuthContext);
+  if (context === undefined) {
+    throw new Error('useAuth deve ser usado dentro de um AuthProvider');
+  }
+  return context;
+};
