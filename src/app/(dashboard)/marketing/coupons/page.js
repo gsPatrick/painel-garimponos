@@ -37,8 +37,9 @@ import {
     DialogTitle,
     DialogTrigger,
 } from "@/components/ui/dialog";
-import { getCoupons, createCoupon } from "@/services/mocks";
+import AppService from "@/services/app.service";
 import { CouponForm } from "@/components/marketing/CouponForm";
+import { toast } from "sonner";
 
 export default function CouponsPage() {
     const [coupons, setCoupons] = useState([]);
@@ -50,10 +51,11 @@ export default function CouponsPage() {
     const fetchCoupons = async () => {
         setLoading(true);
         try {
-            const data = await getCoupons();
-            setCoupons(data);
+            const data = await AppService.getCoupons();
+            setCoupons(data || []);
         } catch (error) {
             console.error("Failed to fetch coupons:", error);
+            toast.error("Erro ao carregar cupons.");
         } finally {
             setLoading(false);
         }
@@ -66,19 +68,21 @@ export default function CouponsPage() {
     const handleCreateCoupon = async (data) => {
         setIsCreating(true);
         try {
-            await createCoupon(data);
+            await AppService.createCoupon(data);
             setIsCreateModalOpen(false);
             fetchCoupons(); // Refresh list
+            toast.success("Cupom criado com sucesso!");
         } catch (error) {
             console.error("Failed to create coupon:", error);
+            toast.error("Erro ao criar cupom.");
         } finally {
             setIsCreating(false);
         }
     };
 
     const filteredCoupons = coupons.filter(coupon =>
-        coupon.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        coupon.description.toLowerCase().includes(searchTerm.toLowerCase())
+        (coupon.code || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (coupon.description || "").toLowerCase().includes(searchTerm.toLowerCase())
     );
 
     const getStatusBadge = (status) => {
@@ -111,7 +115,7 @@ export default function CouponsPage() {
 
     const copyToClipboard = (text) => {
         navigator.clipboard.writeText(text);
-        // Toast notification would go here
+        toast.success("Código copiado!");
     };
 
     return (

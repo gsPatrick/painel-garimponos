@@ -62,13 +62,14 @@ import {
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Checkbox } from "@/components/ui/checkbox";
-import { getCustomerById, mockDelay } from "@/services/mocks";
+import AppService from "@/services/app.service";
 import Link from "next/link";
 import { format, formatDistanceToNow, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { toast } from "sonner";
 
 export default function CustomerProfilePage() {
     const params = useParams();
@@ -86,10 +87,16 @@ export default function CustomerProfilePage() {
         const fetchCustomer = async () => {
             setLoading(true);
             try {
-                const data = await getCustomerById(params.id);
-                setCustomer(data);
+                const data = await AppService.getCustomerById(params.id);
+                if (data) {
+                    setCustomer(data);
+                } else {
+                    toast.error("Cliente não encontrado.");
+                    router.push('/customers');
+                }
             } catch (error) {
                 console.error("Failed to fetch customer:", error);
+                toast.error("Erro ao carregar cliente.");
             } finally {
                 setLoading(false);
             }
@@ -97,7 +104,7 @@ export default function CustomerProfilePage() {
         if (params.id) {
             fetchCustomer();
         }
-    }, [params.id]);
+    }, [params.id, router]);
 
     const handleAddNote = () => {
         if (!noteText.trim()) return;
@@ -109,7 +116,7 @@ export default function CustomerProfilePage() {
         };
         setCustomer({
             ...customer,
-            notes: [newNote, ...customer.notes]
+            notes: [newNote, ...(customer.notes || [])]
         });
         setNoteText("");
     };
@@ -119,8 +126,8 @@ export default function CustomerProfilePage() {
         if (isNaN(amount) || amount <= 0) return;
 
         const newBalance = balanceAdjustment.type === 'credit'
-            ? customer.walletBalance + amount
-            : customer.walletBalance - amount;
+            ? (customer.walletBalance || 0) + amount
+            : (customer.walletBalance || 0) - amount;
 
         const newHistoryItem = {
             id: `WH-${Date.now()}`,
@@ -133,7 +140,7 @@ export default function CustomerProfilePage() {
         setCustomer({
             ...customer,
             walletBalance: newBalance,
-            walletHistory: [newHistoryItem, ...customer.walletHistory]
+            walletHistory: [newHistoryItem, ...(customer.walletHistory || [])]
         });
         setIsBalanceModalOpen(false);
         setBalanceAdjustment({ type: "credit", amount: "" });
@@ -156,7 +163,11 @@ export default function CustomerProfilePage() {
     };
 
     if (loading) {
-        return <div className="p-8">Carregando perfil do cliente...</div>;
+        return (
+            <div className="flex justify-center py-20">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+            </div>
+        );
     }
 
     if (!customer) {
@@ -173,7 +184,7 @@ export default function CustomerProfilePage() {
                     </Button>
                     <div className="flex items-center gap-4">
                         <div className="h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center font-bold text-primary text-2xl">
-                            {customer.avatar}
+                            {(customer.name || "C").charAt(0).toUpperCase()}
                         </div>
                         <div>
                             <h2 className="text-2xl font-bold tracking-tight flex items-center gap-2">
@@ -181,10 +192,10 @@ export default function CustomerProfilePage() {
                                 {customer.status === 'blocked' && <Badge variant="destructive">Bloqueado</Badge>}
                             </h2>
                             <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                                <span>Cliente desde {format(new Date(customer.createdAt), "MMMM 'de' yyyy", { locale: ptBR })}</span>
+                                <span>Cliente desde {customer.createdAt ? format(new Date(customer.createdAt), "MMMM 'de' yyyy", { locale: ptBR }) : 'N/A'}</span>
                                 <span>•</span>
                                 <div className="flex gap-1">
-                                    {customer.tags.map(tag => (
+                                    {(customer.tags || []).map(tag => (
                                         <Badge key={tag} variant="secondary" className="text-xs font-normal">{tag}</Badge>
                                     ))}
                                 </div>
@@ -228,11 +239,11 @@ export default function CustomerProfilePage() {
                             </CardHeader>
                             <CardContent>
                                 <div className="text-2xl font-bold text-blue-900">
-                                    {customer.ltv.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+                                    {(customer.ltv || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
                                 </div>
                                 <div className="text-xs text-blue-700 mt-1 flex flex-col">
-                                    <span>Real: {customer.spentReal?.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</span>
-                                    <span>Crédito: {customer.spentCredit?.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</span>
+                                    <span>Real: {(customer.spentReal || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</span>
+                                    <span>Crédito: {(customer.spentCredit || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</span>
                                 </div>
                             </CardContent>
                         </Card>
@@ -243,7 +254,7 @@ export default function CustomerProfilePage() {
                             </CardHeader>
                             <CardContent>
                                 <div className="text-2xl font-bold text-purple-900">
-                                    {(customer.ltv / (customer.ordersCount || 1)).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+                                    {((customer.ltv || 0) / (customer.ordersCount || 1)).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
                                 </div>
                             </CardContent>
                         </Card>
@@ -254,7 +265,7 @@ export default function CustomerProfilePage() {
                             </CardHeader>
                             <CardContent>
                                 <div className="text-2xl font-bold text-green-900">
-                                    {customer.walletBalance.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+                                    {(customer.walletBalance || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
                                 </div>
                                 <p className="text-xs text-green-700 mt-1">
                                     Disponível para uso
@@ -283,7 +294,7 @@ export default function CustomerProfilePage() {
                                     <TableRow className="cursor-pointer hover:bg-muted/50" onClick={() => handleOrderClick("#1024")}>
                                         <TableCell className="font-medium">#1024</TableCell>
                                         <TableCell>
-                                            {formatDistanceToNow(new Date(customer.lastOrderDate), { addSuffix: true, locale: ptBR })}
+                                            {customer.lastOrderDate ? formatDistanceToNow(new Date(customer.lastOrderDate), { addSuffix: true, locale: ptBR }) : 'N/A'}
                                         </TableCell>
                                         <TableCell><Badge variant="outline">Concluído</Badge></TableCell>
                                         <TableCell className="text-right">R$ 150,00</TableCell>
@@ -378,7 +389,7 @@ export default function CustomerProfilePage() {
                                     <Button className="self-end" onClick={handleAddNote}>Adicionar</Button>
                                 </div>
                                 <div className="space-y-4 mt-4">
-                                    {customer.notes.map(note => (
+                                    {(customer.notes || []).map(note => (
                                         <div key={note.id} className="bg-muted p-3 rounded-md text-sm">
                                             <p>{note.text}</p>
                                             <div className="flex justify-between mt-2 text-xs text-muted-foreground">
@@ -438,7 +449,7 @@ export default function CustomerProfilePage() {
                             <CardTitle>Endereços</CardTitle>
                         </CardHeader>
                         <CardContent className="space-y-3 pt-4">
-                            {customer.addresses.map(addr => (
+                            {(customer.addresses || []).map(addr => (
                                 <div key={addr.id} className="border rounded p-3 text-sm relative">
                                     {addr.default && <Badge variant="secondary" className="absolute top-2 right-2 text-[10px]">Padrão</Badge>}
                                     <div className="font-medium">{addr.street}</div>
@@ -454,7 +465,7 @@ export default function CustomerProfilePage() {
                         <CardHeader>
                             <CardTitle className="flex items-center gap-2 text-green-700">
                                 <Wallet className="h-5 w-5" />
-                                Créditos
+                                Credits
                             </CardTitle>
                         </CardHeader>
                         <CardContent className="space-y-4">
@@ -462,7 +473,7 @@ export default function CustomerProfilePage() {
                                 <div>
                                     <span className="text-sm text-muted-foreground">Saldo Atual</span>
                                     <div className="text-3xl font-bold text-green-700">
-                                        {customer.walletBalance.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+                                        {(customer.walletBalance || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
                                     </div>
                                 </div>
                                 <Dialog open={isBalanceModalOpen} onOpenChange={setIsBalanceModalOpen}>
@@ -516,7 +527,7 @@ export default function CustomerProfilePage() {
                             <Separator />
                             <div className="space-y-2">
                                 <span className="text-xs font-medium text-muted-foreground">Histórico Recente</span>
-                                {customer.walletHistory.map(history => (
+                                {(customer.walletHistory || []).map(history => (
                                     <div key={history.id} className="flex justify-between text-sm">
                                         <span className="text-muted-foreground truncate max-w-[150px]">{history.description}</span>
                                         <span className={history.type === 'credit' ? 'text-green-600' : 'text-red-600'}>
@@ -549,7 +560,7 @@ export default function CustomerProfilePage() {
                                             </div>
 
                                             {["2024-12", "2024-11"].map((month) => {
-                                                const monthData = customer.walletHistory.filter(h => h.month === month);
+                                                const monthData = (customer.walletHistory || []).filter(h => h.month === month);
                                                 const received = monthData.filter(h => h.type === 'credit').reduce((acc, curr) => acc + curr.amount, 0);
                                                 const spent = monthData.filter(h => h.type === 'debit').reduce((acc, curr) => acc + curr.amount, 0);
                                                 const expired = monthData.filter(h => h.type === 'expired').reduce((acc, curr) => acc + curr.amount, 0);
@@ -605,7 +616,7 @@ export default function CustomerProfilePage() {
                                                                                     </TableCell>
                                                                                     <TableCell className="text-sm">{history.description}</TableCell>
                                                                                     <TableCell className={`text-right font-medium text-sm ${history.type === 'credit' ? 'text-green-600' :
-                                                                                            history.type === 'expired' ? 'text-red-600' : 'text-blue-600'
+                                                                                        history.type === 'expired' ? 'text-red-600' : 'text-blue-600'
                                                                                         }`}>
                                                                                         {history.type === 'credit' ? '+' : '-'} {history.amount.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
                                                                                     </TableCell>

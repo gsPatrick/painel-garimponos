@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useTheme } from "@/contexts/ThemeContext";
-import { getSettings, updateSettings } from "@/services/mocks";
+import AppService from "@/services/app.service";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -21,7 +21,7 @@ export default function SettingsPage() {
     useEffect(() => {
         const fetchSettings = async () => {
             try {
-                const data = await getSettings();
+                const data = await AppService.getSettings();
                 setSettings(data);
             } catch (error) {
                 console.error("Failed to fetch settings:", error);
@@ -54,9 +54,9 @@ export default function SettingsPage() {
         setSaving(true);
         try {
             // Simulate saving each section
-            await updateSettings('identity', settings.identity);
-            await updateSettings('integrations', settings.integrations);
-            await updateSettings('seo', settings.seo);
+            await AppService.updateSettings('identity', settings.identity);
+            await AppService.updateSettings('integrations', settings.integrations);
+            await AppService.updateSettings('seo', settings.seo);
             toast.success("Configurações salvas com sucesso!");
         } catch (error) {
             console.error("Failed to save settings:", error);
@@ -66,7 +66,12 @@ export default function SettingsPage() {
         }
     };
 
-    if (loading) return <div className="p-8">Carregando configurações...</div>;
+    if (loading) return (
+        <div className="flex justify-center py-20">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+        </div>
+    );
+
     if (!settings) return <div className="p-8">Erro ao carregar configurações.</div>;
 
     return (

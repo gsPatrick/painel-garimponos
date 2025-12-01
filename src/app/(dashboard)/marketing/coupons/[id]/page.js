@@ -3,9 +3,10 @@
 import { useRouter, useParams } from "next/navigation";
 import { useState, useEffect } from "react";
 import { CouponForm } from "@/components/marketing/CouponForm";
-import { getCouponById, updateCoupon } from "@/services/mocks";
+import AppService from "@/services/app.service";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft } from "lucide-react";
+import { toast } from "sonner";
 
 export default function EditCouponPage() {
     const router = useRouter();
@@ -17,7 +18,7 @@ export default function EditCouponPage() {
     useEffect(() => {
         const fetchCoupon = async () => {
             try {
-                const data = await getCouponById(params.id);
+                const data = await AppService.getCouponById(params.id);
                 // Convert string dates back to Date objects for the form
                 if (data) {
                     setCoupon({
@@ -25,9 +26,13 @@ export default function EditCouponPage() {
                         startDate: new Date(data.startDate),
                         endDate: data.endDate ? new Date(data.endDate) : null
                     });
+                } else {
+                    toast.error("Cupom não encontrado.");
+                    router.push("/marketing/coupons");
                 }
             } catch (error) {
                 console.error("Failed to fetch coupon:", error);
+                toast.error("Erro ao carregar cupom.");
             } finally {
                 setIsFetching(false);
             }
@@ -35,22 +40,28 @@ export default function EditCouponPage() {
         if (params.id) {
             fetchCoupon();
         }
-    }, [params.id]);
+    }, [params.id, router]);
 
     const handleSubmit = async (data) => {
         setIsLoading(true);
         try {
-            await updateCoupon(params.id, data);
+            await AppService.updateCoupon(params.id, data);
+            toast.success("Cupom atualizado com sucesso!");
             router.push("/marketing/coupons");
         } catch (error) {
             console.error("Failed to update coupon:", error);
+            toast.error("Erro ao atualizar cupom.");
         } finally {
             setIsLoading(false);
         }
     };
 
     if (isFetching) {
-        return <div className="p-8">Carregando cupom...</div>;
+        return (
+            <div className="flex justify-center py-20">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+            </div>
+        );
     }
 
     if (!coupon) {

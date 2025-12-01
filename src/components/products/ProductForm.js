@@ -14,8 +14,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Upload, Plus, Trash2, GripVertical, Image as ImageIcon, Box, Truck, Tag, Info, Layers, Palette, Ruler } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { MOCK_CATEGORIES } from "@/services/mocks";
+import AppService from "@/services/app.service";
 import { CategoryCreateModal } from "./CategoryCreateModal";
+import { toast } from "sonner";
 
 export function ProductForm({ initialData }) {
     const [hasVariations, setHasVariations] = useState(initialData?.variations || false);
@@ -27,9 +28,22 @@ export function ProductForm({ initialData }) {
 
     // Category State
     const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
-    const [categories, setCategories] = useState(MOCK_CATEGORIES);
+    const [categories, setCategories] = useState([]);
     const [selectedCategory, setSelectedCategory] = useState(initialData?.category || "");
     const [selectedSubcategory, setSelectedSubcategory] = useState(initialData?.subcategory || "");
+
+    useEffect(() => {
+        const fetchCategories = async () => {
+            try {
+                const data = await AppService.getCategories();
+                setCategories(data || []);
+            } catch (error) {
+                console.error("Failed to fetch categories:", error);
+                toast.error("Erro ao carregar categorias.");
+            }
+        };
+        fetchCategories();
+    }, []);
 
     const { register, handleSubmit, control, watch, setValue } = useForm({
         defaultValues: initialData || {
@@ -192,7 +206,7 @@ export function ProductForm({ initialData }) {
                                     </div>
                                 </div>
                                 <div className="space-y-2">
-                                    <Label>Preço "De"</Label>
+                                    <Label>Preço &quot;De&quot;</Label>
                                     <div className="relative">
                                         <span className="absolute left-3 top-2.5 text-muted-foreground">R$</span>
                                         <Input className="pl-9" placeholder="0,00" {...register("comparePrice")} />

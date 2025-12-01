@@ -38,9 +38,10 @@ import {
     Store,
 } from "lucide-react";
 import Link from "next/link";
-import { getOrders } from "@/services/mocks";
+import AppService from "@/services/app.service";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { toast } from "sonner";
 
 export default function OrdersPage() {
     const [orders, setOrders] = useState([]);
@@ -52,10 +53,11 @@ export default function OrdersPage() {
         const fetchOrders = async () => {
             setLoading(true);
             try {
-                const data = await getOrders();
-                setOrders(data);
+                const data = await AppService.getOrders();
+                setOrders(data || []);
             } catch (error) {
                 console.error("Failed to fetch orders:", error);
+                toast.error("Erro ao carregar pedidos.");
             } finally {
                 setLoading(false);
             }
@@ -65,9 +67,9 @@ export default function OrdersPage() {
 
     const filteredOrders = orders.filter((order) => {
         const matchesSearch =
-            order.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            order.customer.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            order.customer.email.toLowerCase().includes(searchTerm.toLowerCase());
+            (order.id || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
+            (order.customer?.name || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
+            (order.customer?.email || "").toLowerCase().includes(searchTerm.toLowerCase());
 
         if (statusFilter === "all") return matchesSearch;
         if (statusFilter === "unpaid")
@@ -116,8 +118,8 @@ export default function OrdersPage() {
 
     const getOriginIcon = (items) => {
         // Simple logic to determine origin based on item types
-        const hasBrecho = items.some(i => i.type === 'Brechó');
-        const hasFisico = items.some(i => i.type === 'Físico');
+        const hasBrecho = (items || []).some(i => i.type === 'Brechó');
+        const hasFisico = (items || []).some(i => i.type === 'Físico');
 
         if (hasBrecho && hasFisico) return <Store className="h-4 w-4 text-purple-500" title="Misto" />;
         if (hasBrecho) return <Store className="h-4 w-4 text-orange-500" title="Brechó" />;
@@ -217,11 +219,11 @@ export default function OrdersPage() {
                                             <TableCell>
                                                 <div className="flex items-center gap-2">
                                                     <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-xs font-bold text-primary">
-                                                        {order.customer.avatar}
+                                                        {(order.customer?.name || "C").charAt(0).toUpperCase()}
                                                     </div>
                                                     <div className="flex flex-col">
-                                                        <span className="font-medium text-sm">{order.customer.name}</span>
-                                                        <span className="text-xs text-muted-foreground">{order.customer.email}</span>
+                                                        <span className="font-medium text-sm">{order.customer?.name || "N/A"}</span>
+                                                        <span className="text-xs text-muted-foreground">{order.customer?.email || "N/A"}</span>
                                                     </div>
                                                 </div>
                                             </TableCell>
@@ -230,10 +232,10 @@ export default function OrdersPage() {
                                                 {getFulfillmentBadge(order.fulfillmentStatus)}
                                             </TableCell>
                                             <TableCell>
-                                                {order.items.reduce((acc, item) => acc + item.quantity, 0)} itens
+                                                {(order.items || []).reduce((acc, item) => acc + item.quantity, 0)} itens
                                             </TableCell>
                                             <TableCell className="text-right font-mono">
-                                                {order.total.toLocaleString("pt-BR", {
+                                                {(order.total || 0).toLocaleString("pt-BR", {
                                                     style: "currency",
                                                     currency: "BRL",
                                                 })}

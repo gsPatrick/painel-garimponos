@@ -1,7 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useState, useEffect } from "react";
-import { getSettings } from "@/services/mocks";
+import AppService from "@/services/app.service";
 
 const ThemeContext = createContext();
 
@@ -17,7 +17,7 @@ export function ThemeProvider({ children }) {
     useEffect(() => {
         const fetchSettings = async () => {
             try {
-                const settings = await getSettings();
+                const settings = await AppService.getSettings();
                 if (settings && settings.identity) {
                     setTheme(settings.identity);
                 }

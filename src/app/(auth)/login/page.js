@@ -20,8 +20,9 @@ export default function LoginPage() {
     const { toast } = useToast();
 
     // Fallback seguro caso o provider ainda não tenha sido implementado completamente
-    const systemTheme = useSystemTheme ? useSystemTheme() : { themeConfig: {} };
-    const { themeConfig } = systemTheme;
+    // Fallback seguro caso o provider ainda não tenha sido implementado completamente
+    const systemTheme = useSystemTheme();
+    const themeConfig = systemTheme?.themeConfig || {};
 
     const [isLoading, setIsLoading] = useState(false);
     const [showPassword, setShowPassword] = useState(false);

@@ -64,15 +64,11 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
-import {
-    Collapsible,
-    CollapsibleContent,
-    CollapsibleTrigger,
-} from "@/components/ui/collapsible";
-import { getOrderById, mockDelay } from "@/services/mocks";
+import AppService from "@/services/app.service";
 import Link from "next/link";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { toast } from "sonner";
 
 export default function OrderDetailsPage() {
     const params = useParams();
@@ -90,10 +86,11 @@ export default function OrderDetailsPage() {
         const fetchOrder = async () => {
             setLoading(true);
             try {
-                const data = await getOrderById(params.id);
+                const data = await AppService.getOrderById(params.id);
                 setOrder(data);
             } catch (error) {
                 console.error("Failed to fetch order:", error);
+                toast.error("Erro ao carregar detalhes do pedido.");
             } finally {
                 setLoading(false);
             }
@@ -104,7 +101,10 @@ export default function OrderDetailsPage() {
     }, [params.id]);
 
     const handleFulfillOrder = async () => {
-        // Mock logic to update order status
+        // Mock logic to update order status - In a real app this would be an API call
+        // For now we just update the local state as if the API call succeeded
+        // Ideally we should have an AppService.fulfillOrder(id, data) method
+
         const newEvent = {
             id: `EVT-${Date.now()}`,
             type: "fulfilled",
@@ -117,11 +117,12 @@ export default function OrderDetailsPage() {
         const updatedOrder = {
             ...order,
             fulfillmentStatus: "fulfilled",
-            timeline: [...order.timeline, newEvent],
+            timeline: [...(order.timeline || []), newEvent],
         };
 
         setOrder(updatedOrder);
         setIsFulfillmentModalOpen(false);
+        toast.success("Pedido marcado como enviado!");
     };
 
     const handleMarkAsPaid = async () => {
@@ -137,13 +138,18 @@ export default function OrderDetailsPage() {
         const updatedOrder = {
             ...order,
             paymentStatus: "paid",
-            timeline: [...order.timeline, newEvent]
+            timeline: [...(order.timeline || []), newEvent]
         };
         setOrder(updatedOrder);
+        toast.success("Pedido marcado como pago!");
     };
 
     if (loading) {
-        return <div className="p-8">Carregando detalhes do pedido...</div>;
+        return (
+            <div className="flex justify-center py-20">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+            </div>
+        );
     }
 
     if (!order) {
@@ -200,7 +206,7 @@ export default function OrderDetailsPage() {
                             {order.riskAnalysis && getRiskBadge(order.riskAnalysis.score)}
                         </h2>
                         <p className="text-sm text-muted-foreground">
-                            {format(new Date(order.createdAt), "d 'de' MMMM 'de' yyyy 'às' HH:mm", {
+                            {order.createdAt && format(new Date(order.createdAt), "d 'de' MMMM 'de' yyyy 'às' HH:mm", {
                                 locale: ptBR,
                             })}
                         </p>
@@ -315,7 +321,7 @@ export default function OrderDetailsPage() {
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
-                                    {order.items.map((item) => (
+                                    {(order.items || []).map((item) => (
                                         <TableRow key={item.id}>
                                             <TableCell>
                                                 <div className="h-12 w-12 rounded-md bg-muted overflow-hidden">
@@ -360,20 +366,20 @@ export default function OrderDetailsPage() {
                             <div className="flex flex-col gap-2 w-full max-w-xs ml-auto">
                                 <div className="flex justify-between text-sm">
                                     <span className="text-muted-foreground">Subtotal</span>
-                                    <span>{order.subtotal.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</span>
+                                    <span>{(order.subtotal || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</span>
                                 </div>
                                 <div className="flex justify-between text-sm">
                                     <span className="text-muted-foreground">Frete (Sedex)</span>
-                                    <span>{order.shipping.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</span>
+                                    <span>{(order.shipping || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</span>
                                 </div>
                                 <div className="flex justify-between text-sm">
                                     <span className="text-muted-foreground">Descontos</span>
-                                    <span>- {order.discount.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</span>
+                                    <span>- {(order.discount || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</span>
                                 </div>
                                 <Separator className="my-2" />
                                 <div className="flex justify-between font-bold text-lg">
                                     <span>Total</span>
-                                    <span>{order.total.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</span>
+                                    <span>{(order.total || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</span>
                                 </div>
                             </div>
                         </div>
@@ -391,23 +397,23 @@ export default function OrderDetailsPage() {
                                     <div className="flex items-center gap-2">
                                         <CreditCard className="h-4 w-4 text-muted-foreground" />
                                         <span className="text-sm font-medium">
-                                            {order.paymentDetails.method === 'pix' ? 'Pix' : 'Cartão de Crédito'}
+                                            {order.paymentDetails?.method === 'pix' ? 'Pix' : 'Cartão de Crédito'}
                                         </span>
                                     </div>
-                                    {order.paymentDetails.cardLast4 && (
+                                    {order.paymentDetails?.cardLast4 && (
                                         <span className="text-sm text-muted-foreground ml-6">**** {order.paymentDetails.cardLast4}</span>
                                     )}
-                                    {order.paymentDetails.installments && (
+                                    {order.paymentDetails?.installments && (
                                         <span className="text-sm text-muted-foreground ml-6">
                                             {order.paymentDetails.installments}x de {((order.paymentDetails.installmentValue || order.total) / order.paymentDetails.installments).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
                                         </span>
                                     )}
-                                    {order.paymentDetails.transactionId && (
+                                    {order.paymentDetails?.transactionId && (
                                         <span className="text-xs text-muted-foreground mt-2 bg-muted px-2 py-1 rounded w-fit font-mono">
                                             ID: {order.paymentDetails.transactionId}
                                         </span>
                                     )}
-                                    {order.paymentDetails.authorizationCode && (
+                                    {order.paymentDetails?.authorizationCode && (
                                         <span className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded w-fit font-mono">
                                             Auth: {order.paymentDetails.authorizationCode}
                                         </span>
@@ -429,7 +435,7 @@ export default function OrderDetailsPage() {
                         </CardHeader>
                         <CardContent>
                             <div className="relative space-y-8 before:absolute before:inset-0 before:ml-5 before:-translate-x-px md:before:mx-auto md:before:translate-x-0 before:h-full before:w-0.5 before:bg-gradient-to-b before:from-transparent before:via-slate-300 before:to-transparent">
-                                {order.timeline.map((event, index) => (
+                                {(order.timeline || []).map((event, index) => (
                                     <div key={event.id} className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group is-active">
                                         <div className="flex items-center justify-center w-10 h-10 rounded-full border border-white bg-slate-300 group-[.is-active]:bg-emerald-500 text-slate-500 group-[.is-active]:text-emerald-50 shadow shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 z-10">
                                             {getTimelineIcon(event.type)}
@@ -471,13 +477,13 @@ export default function OrderDetailsPage() {
                             <div className="flex flex-col gap-4">
                                 <div className="flex items-center gap-3">
                                     <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center font-bold text-primary">
-                                        {order.customer.avatar}
+                                        {(order.customer?.avatar || "C")}
                                     </div>
                                     <div className="flex flex-col">
                                         <Link href="#" className="font-medium hover:underline text-primary">
-                                            {order.customer.name}
+                                            {order.customer?.name}
                                         </Link>
-                                        <span className="text-sm text-muted-foreground">{order.customer.ordersCount} pedidos anteriores</span>
+                                        <span className="text-sm text-muted-foreground">{order.customer?.ordersCount} pedidos anteriores</span>
                                     </div>
                                 </div>
                                 <Separator />
@@ -485,19 +491,19 @@ export default function OrderDetailsPage() {
                                     <div className="flex items-center justify-between text-sm">
                                         <span className="text-muted-foreground">Email</span>
                                         <div className="flex items-center gap-2">
-                                            <span className="truncate max-w-[150px]" title={order.customer.email}>{order.customer.email}</span>
+                                            <span className="truncate max-w-[150px]" title={order.customer?.email}>{order.customer?.email}</span>
                                             <Copy className="h-3 w-3 cursor-pointer text-muted-foreground hover:text-foreground" />
                                         </div>
                                     </div>
                                     <div className="flex items-center justify-between text-sm">
                                         <span className="text-muted-foreground">Telefone</span>
                                         <div className="flex items-center gap-2">
-                                            <span>{order.customer.phone}</span>
+                                            <span>{order.customer?.phone}</span>
                                             <ExternalLink className="h-3 w-3 cursor-pointer text-muted-foreground hover:text-foreground" />
                                         </div>
                                     </div>
                                 </div>
-                                {order.customer.stats && (
+                                {order.customer?.stats && (
                                     <>
                                         <Separator />
                                         <div className="grid grid-cols-2 gap-2">
@@ -534,10 +540,10 @@ export default function OrderDetailsPage() {
                         <CardContent>
                             <div className="space-y-4">
                                 <div className="text-sm">
-                                    <p>{order.shippingAddress.street}</p>
-                                    <p>{order.shippingAddress.city} - {order.shippingAddress.state}</p>
-                                    <p>{order.shippingAddress.zip}</p>
-                                    <p>{order.shippingAddress.country}</p>
+                                    <p>{order.shippingAddress?.street}</p>
+                                    <p>{order.shippingAddress?.city} - {order.shippingAddress?.state}</p>
+                                    <p>{order.shippingAddress?.zip}</p>
+                                    <p>{order.shippingAddress?.country}</p>
                                 </div>
                                 <div className="h-32 bg-muted rounded-md flex items-center justify-center text-muted-foreground">
                                     <MapPin className="h-8 w-8 opacity-50" />

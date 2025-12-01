@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { getShippingRules, createShippingRule } from "@/services/mocks";
+import AppService from "@/services/app.service";
 import { ShippingRuleModal } from "@/components/shipping/ShippingRuleModal";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -44,8 +44,8 @@ export default function ShippingPage() {
     const fetchRules = async () => {
         setLoading(true);
         try {
-            const data = await getShippingRules();
-            setRules(data);
+            const data = await AppService.getShippingRules();
+            setRules(data || []);
         } catch (error) {
             console.error("Failed to fetch rules:", error);
             toast.error("Erro ao carregar regras.");
@@ -62,7 +62,7 @@ export default function ShippingPage() {
         setIsSaving(true);
         try {
             // In a real app, we would check if we are editing or creating
-            await createShippingRule(data);
+            await AppService.createShippingRule(data);
             toast.success("Regra salva com sucesso!");
             setIsModalOpen(false);
             fetchRules();

@@ -3,9 +3,10 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { CouponForm } from "@/components/marketing/CouponForm";
-import { createCoupon } from "@/services/mocks";
+import AppService from "@/services/app.service";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft } from "lucide-react";
+import { toast } from "sonner";
 
 export default function NewCouponPage() {
     const router = useRouter();
@@ -14,10 +15,12 @@ export default function NewCouponPage() {
     const handleSubmit = async (data) => {
         setIsLoading(true);
         try {
-            await createCoupon(data);
+            await AppService.createCoupon(data);
+            toast.success("Cupom criado com sucesso!");
             router.push("/marketing/coupons");
         } catch (error) {
             console.error("Failed to create coupon:", error);
+            toast.error("Erro ao criar cupom.");
         } finally {
             setIsLoading(false);
         }

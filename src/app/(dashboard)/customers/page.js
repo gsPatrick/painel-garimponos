@@ -37,9 +37,10 @@ import {
     MapPin,
 } from "lucide-react";
 import Link from "next/link";
-import { getCustomers } from "@/services/mocks";
+import AppService from "@/services/app.service";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { toast } from "sonner";
 
 export default function CustomersPage() {
     const [customers, setCustomers] = useState([]);
@@ -51,10 +52,11 @@ export default function CustomersPage() {
         const fetchCustomers = async () => {
             setLoading(true);
             try {
-                const data = await getCustomers();
-                setCustomers(data);
+                const data = await AppService.getCustomers();
+                setCustomers(data || []);
             } catch (error) {
                 console.error("Failed to fetch customers:", error);
+                toast.error("Erro ao carregar clientes.");
             } finally {
                 setLoading(false);
             }
@@ -64,13 +66,13 @@ export default function CustomersPage() {
 
     const filteredCustomers = customers.filter((customer) => {
         const matchesSearch =
-            customer.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            customer.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            customer.phone.includes(searchTerm);
+            (customer.name || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
+            (customer.email || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
+            (customer.phone || "").includes(searchTerm);
 
         if (filterType === "all") return matchesSearch;
         if (filterType === "vip")
-            return matchesSearch && customer.ltv > 1000;
+            return matchesSearch && (customer.ltv || 0) > 1000;
         if (filterType === "new") {
             const thirtyDaysAgo = new Date();
             thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
@@ -163,7 +165,7 @@ export default function CustomersPage() {
                                             <TableCell>
                                                 <div className="flex items-center gap-3">
                                                     <div className="h-9 w-9 rounded-full bg-primary/10 flex items-center justify-center font-bold text-primary text-sm">
-                                                        {customer.avatar}
+                                                        {(customer.name || "C").charAt(0).toUpperCase()}
                                                     </div>
                                                     <div className="flex flex-col">
                                                         <Link href={`/customers/${customer.id}`} className="font-medium hover:underline">
@@ -173,27 +175,27 @@ export default function CustomersPage() {
                                                     </div>
                                                 </div>
                                             </TableCell>
-                                            <TableCell>{getStatusBadge(customer.status)}</TableCell>
+                                            <TableCell>{getStatusBadge(customer.status || 'guest')}</TableCell>
                                             <TableCell>
                                                 <div className="flex items-center gap-1 text-muted-foreground">
                                                     <MapPin className="h-3 w-3" />
-                                                    <span>{customer.location}</span>
+                                                    <span>{customer.location || 'N/A'}</span>
                                                 </div>
                                             </TableCell>
                                             <TableCell className="text-center">
-                                                {customer.ordersCount} pedidos
+                                                {customer.ordersCount || 0} pedidos
                                             </TableCell>
                                             <TableCell className="text-right font-bold font-mono">
-                                                {customer.ltv.toLocaleString("pt-BR", {
+                                                {(customer.ltv || 0).toLocaleString("pt-BR", {
                                                     style: "currency",
                                                     currency: "BRL",
                                                 })}
                                             </TableCell>
                                             <TableCell className="text-right text-muted-foreground">
-                                                {formatDistanceToNow(new Date(customer.lastOrderDate), {
+                                                {customer.lastOrderDate ? formatDistanceToNow(new Date(customer.lastOrderDate), {
                                                     addSuffix: true,
                                                     locale: ptBR,
-                                                })}
+                                                }) : 'Nunca'}
                                             </TableCell>
                                             <TableCell>
                                                 <DropdownMenu>
