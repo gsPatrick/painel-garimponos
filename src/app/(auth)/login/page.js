@@ -1,105 +1,245 @@
-// src/app/login/page.js
 "use client";
 
-import { useState } from "react";
-import Image from "next/image";
+import { useState, useEffect } from "react";
 import Link from "next/link";
-import { useAuth } from "@/context/AuthContext";
-import { AuthInput } from "@/components/auth/AuthInput";
+import Image from "next/image";
+import { useRouter } from "next/navigation";
+import { motion, AnimatePresence } from "framer-motion";
+import { Eye, EyeOff, Loader2, ArrowLeft, ShoppingBag, Tag } from "lucide-react";
+
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
+import { useToast } from "@/hooks/use-toast";
+// Certifique-se de criar este provider ou remover a dependência se não existir ainda
+import { useSystemTheme } from "@/components/providers/SystemThemeProvider";
 
 export default function LoginPage() {
-  const { login } = useAuth();
-  const [formData, setFormData] = useState({ email: "", password: "" });
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+    const router = useRouter();
+    const { toast } = useToast();
 
-  const handleChange = (e) => {
-    setFormData({ ...formData, [e.target.id]: e.target.value });
-  };
+    // Fallback seguro caso o provider ainda não tenha sido implementado completamente
+    const systemTheme = useSystemTheme ? useSystemTheme() : { themeConfig: {} };
+    const { themeConfig } = systemTheme;
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    setError("");
-    try {
-      await login(formData.email, formData.password);
-    } catch (err) {
-      setError(err.message);
-      setLoading(false);
-    }
-  };
+    const [isLoading, setIsLoading] = useState(false);
+    const [showPassword, setShowPassword] = useState(false);
+    const [isSuccess, setIsSuccess] = useState(false);
+    const [formData, setFormData] = useState({
+        email: "",
+        password: "",
+    });
 
-  return (
-    <div className="flex min-h-screen w-full items-center justify-center bg-[#f1f5f9] p-4">
-      <Card className="w-full max-w-md bg-white shadow-lg border-none rounded-xl">
-        <CardHeader className="space-y-4 flex flex-col items-center pb-2">
-          {/* LOGO ADICIONADO NO TOPO */}
-          <div className="mb-2">
-            <Image 
-              src="/logo.png" 
-              alt="Doculink Logo" 
-              width={180} 
-              height={40} 
-              priority 
+    const systemLogo = themeConfig?.SYSTEM_LOGO || null;
+    const primaryColor = themeConfig?.SYSTEM_COLOR_PRIMARY || "hsl(var(--primary))";
+
+    const handleInputChange = (e) => {
+        const { name, value } = e.target;
+        setFormData((prev) => ({ ...prev, [name]: value }));
+    };
+
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+        setIsLoading(true);
+
+        try {
+            // Ajuste para usar a variável de ambiente
+            const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'https://geral-apilorenaecommerce.r954jc.easypanel.host/api';
+
+            const response = await fetch(`${apiUrl}/users/login`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(formData)
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                localStorage.setItem('token', data.token);
+                localStorage.setItem('user', JSON.stringify(data.user));
+
+                setIsSuccess(true); // Dispara animação
+
+                setTimeout(() => {
+                    router.push("/dashboard");
+                }, 1800);
+
+            } else {
+                toast({ title: "Acesso Negado", description: data.error || "Credenciais inválidas.", variant: "destructive" });
+                setIsLoading(false);
+            }
+        } catch (error) {
+            console.error("Login error:", error);
+            toast({ title: "Erro de Conexão", description: "Verifique se a API está rodando.", variant: "destructive" });
+            setIsLoading(false);
+        }
+    };
+
+    return (
+        <div className="relative w-full min-h-screen flex overflow-hidden bg-slate-50">
+
+            {/* --- ANIMAÇÃO DE SAÍDA --- */}
+            <AnimatePresence>
+                {isSuccess && (
+                    <div className="fixed inset-0 z-[9999] pointer-events-none flex flex-col justify-end">
+                        <motion.div
+                            initial={{ height: "0%" }}
+                            animate={{ height: "100%" }}
+                            transition={{ duration: 0.6, ease: [0.76, 0, 0.24, 1] }}
+                            className="absolute bottom-0 w-full bg-slate-100 z-10"
+                        />
+                        <motion.div
+                            initial={{ height: "0%" }}
+                            animate={{ height: "100%" }}
+                            transition={{ duration: 0.8, delay: 0.2, ease: [0.76, 0, 0.24, 1] }}
+                            className="absolute bottom-0 w-full z-20 flex items-center justify-center overflow-hidden"
+                            style={{ backgroundColor: primaryColor }}
+                        >
+                            <div className="absolute inset-0 opacity-10 bg-[radial-gradient(#fff_1px,transparent_1px)] [background-size:20px_20px]" />
+                        </motion.div>
+
+                        <motion.div
+                            className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-30 flex flex-col items-center justify-center"
+                            initial={{ y: -1000, rotate: -15, opacity: 0 }}
+                            animate={{
+                                y: "-50%",
+                                rotate: 0,
+                                opacity: 1,
+                                transition: { type: "spring", damping: 12, stiffness: 100, delay: 0.6 }
+                            }}
+                        >
+                            <motion.div
+                                initial={{ height: 0 }}
+                                animate={{ height: "50vh" }}
+                                transition={{ duration: 0.5, delay: 0.6 }}
+                                className="absolute bottom-full left-1/2 w-0.5 bg-white/50 -translate-x-1/2"
+                            />
+                            <div className="bg-white p-8 rounded-xl shadow-2xl flex flex-col items-center gap-4 relative border-t-8 border-white/50">
+                                <div className="absolute -top-4 left-1/2 -translate-x-1/2 w-4 h-4 bg-gray-800 rounded-full border-2 border-white/50 shadow-inner" />
+                                {systemLogo ? (
+                                    <img src={systemLogo} alt="Logo" className="h-16 w-auto object-contain" />
+                                ) : (
+                                    <ShoppingBag className="w-16 h-16 text-slate-800" />
+                                )}
+                                <div className="flex items-center gap-2 text-sm font-bold text-slate-400 uppercase tracking-widest mt-2">
+                                    <Loader2 className="w-4 h-4 animate-spin text-slate-300" />
+                                    Carregando Loja...
+                                </div>
+                            </div>
+                        </motion.div>
+                    </div>
+                )}
+            </AnimatePresence>
+
+            {/* --- CONTEÚDO --- */}
+            <motion.div
+                className="fixed inset-0 bg-slate-900 z-[9998]"
+                initial={{ y: "0%" }}
+                animate={{ y: "-100%" }}
+                transition={{ duration: 0.8, ease: [0.76, 0, 0.24, 1], delay: 0.1 }}
             />
-          </div>
-          <CardTitle className="text-2xl font-bold text-[#151928]">
-            Acesse sua conta
-          </CardTitle>
-          <CardDescription>Bem vindo de volta!</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <AuthInput
-              id="email"
-              label="E-mail"
-              type="email"
-              placeholder="seu@email.com"
-              required
-              onChange={handleChange}
-            />
-            <div className="space-y-1">
-              <AuthInput
-                id="password"
-                label="Senha"
-                type="password"
-                required
-                onChange={handleChange}
-              />
-              {/* TEXTO CENTRALIZADO CONFORME SOLICITADO */}
-              <div className="flex justify-center pt-1">
-                <Link
-                  href="/forgot-password"
-                  className="text-xs font-medium text-muted-foreground hover:text-primary"
-                >
-                  Esqueceu sua senha?
-                </Link>
-              </div>
-            </div>
 
-            {error && (
-              <p className="text-sm text-red-600 font-medium text-center">{error}</p>
-            )}
-
-            <Button
-              type="submit"
-              className="w-full bg-[#1c4ed8] hover:bg-[#1c4ed8]/90 mt-2"
-              disabled={loading}
+            <motion.div
+                className="hidden lg:block relative w-1/2 h-screen bg-slate-900"
+                initial={{ opacity: 0, scale: 1.1 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ duration: 1.2, delay: 0.5, ease: "easeOut" }}
             >
-              {loading ? "Entrando..." : "Entrar"}
-            </Button>
+                <Image
+                    src="https://images.unsplash.com/photo-1441986300917-64674bd600d8?q=80&w=1000&auto=format&fit=crop"
+                    alt="Login Background"
+                    fill
+                    className="object-cover opacity-90"
+                    priority
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-slate-900 via-slate-900/40 to-transparent opacity-80" />
+                <div className="absolute bottom-16 left-16 right-16 z-20 text-white">
+                    <motion.div
+                        initial={{ y: 20, opacity: 0 }}
+                        animate={{ y: 0, opacity: 1 }}
+                        transition={{ delay: 0.8 }}
+                    >
+                        <div className="flex items-center gap-2 mb-4">
+                            <div className="bg-teal-500/20 p-2 rounded-lg backdrop-blur-md border border-teal-500/30">
+                                <ShoppingBag className="w-6 h-6 text-teal-300" />
+                            </div>
+                            <span className="font-bold text-xl tracking-tight">SaaS Core</span>
+                        </div>
+                        <h2 className="text-4xl font-bold mb-4 leading-tight">
+                            Gerencie seu negócio com <span className="text-teal-400">inteligência.</span>
+                        </h2>
+                        <p className="text-slate-300 text-lg max-w-md">
+                            Controle total sobre vendas, estoque e integrações em um só lugar.
+                        </p>
+                    </motion.div>
+                </div>
+            </motion.div>
 
-            <div className="text-center text-sm text-muted-foreground pt-2">
-              Não tem uma conta?{" "}
-              <Link href="/registro" className="font-bold text-[#151928] hover:underline">
-                Crie sua conta
-              </Link>
+            <div className="w-full lg:w-1/2 flex items-center justify-center p-8 lg:p-16 relative">
+                <motion.div
+                    className="w-full max-w-[400px] space-y-8"
+                    initial={{ opacity: 0, y: 30 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.6, delay: 0.6 }}
+                >
+                    <div className="text-center lg:text-left">
+                        <h1 className="text-3xl font-bold text-slate-900 tracking-tight">Login Admin</h1>
+                        <p className="mt-2 text-slate-500">
+                            Entre com suas credenciais de administrador.
+                        </p>
+                    </div>
+
+                    <form className="space-y-5" onSubmit={handleSubmit}>
+                        <div className="space-y-2">
+                            <Label htmlFor="email">Email</Label>
+                            <Input
+                                id="email"
+                                name="email"
+                                type="email"
+                                placeholder="admin@loja.com"
+                                required
+                                value={formData.email}
+                                onChange={handleInputChange}
+                                className="h-12 bg-white border-slate-200 focus-visible:ring-teal-500"
+                            />
+                        </div>
+
+                        <div className="space-y-2">
+                            <div className="flex items-center justify-between">
+                                <Label htmlFor="password">Senha</Label>
+                            </div>
+                            <div className="relative">
+                                <Input
+                                    id="password"
+                                    name="password"
+                                    type={showPassword ? "text" : "password"}
+                                    placeholder="••••••••"
+                                    required
+                                    value={formData.password}
+                                    onChange={handleInputChange}
+                                    className="h-12 pr-10 bg-white border-slate-200 focus-visible:ring-teal-500"
+                                />
+                                <button
+                                    type="button"
+                                    onClick={() => setShowPassword(!showPassword)}
+                                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                                >
+                                    {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                                </button>
+                            </div>
+                        </div>
+
+                        <Button
+                            type="submit"
+                            className="w-full h-12 text-base font-bold bg-slate-900 hover:bg-teal-600 text-white shadow-lg transition-all"
+                            disabled={isLoading || isSuccess}
+                        >
+                            {isLoading ? <><Loader2 className="mr-2 h-5 w-5 animate-spin" /> Verificando...</> : "Acessar Painel"}
+                        </Button>
+                    </form>
+                </motion.div>
             </div>
-          </form>
-        </CardContent>
-      </Card>
-    </div>
-  );
+        </div>
+    );
 }
